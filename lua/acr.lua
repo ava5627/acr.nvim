@@ -74,7 +74,6 @@ local function get_cmd(configuration)
 end
 
 local function execInTerminal(term_opts)
-    print(term_opts.size)
     local tt_status, toggleterm = pcall(require, "toggleterm.terminal")
     if tt_status then
         local Terminal = toggleterm.Terminal
@@ -123,10 +122,10 @@ local function run_configuration(configuration, conf)
                 term_opts.direction = "horizontal"
             end
             if configuration.env ~= nil then
-                term_opts.env[i] = (#configuration.env == 0 and configuration.env[i]) or configuration.env
+                term_opts.env = (#configuration.env > 0 and configuration.env[i]) or configuration.env
             end
             if configuration.cwd ~= nil then
-                term_opts.dir[i] = configuration.cwd
+                term_opts.dir = configuration.cwd
             end
             execInTerminal(term_opts)
         end
