@@ -60,6 +60,7 @@ Each configuration can have the following attributes:
     - if `command` is a list and `env` is a list the ith element will be passed to the ith element in `command`
     - if `command` is a list and `env` is a dict the same environment variables will be passed all commands
 - `term_opts` [dict] custom terminal options, same values as in config
+- `pre_launch` [string] the name of a configuration to run before running the current one, overrides term_opts.on_exit in the pre_launch configuration
 
 `command` and `args` also accept variable substitution
 

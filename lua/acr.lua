@@ -84,8 +84,27 @@ local function execInTerminal(term_opts)
     end
 end
 
-local function run_configuration(configuration, conf)
+local function run_configuration(configuration, conf, configuration_map)
     if configuration == nil then
+        return
+    end
+    print("Running " .. configuration.name)
+    if configuration.pre_launch ~= nil then
+        local preLaunchTask = configuration_map[configuration.preLaunch]
+        configuration.pre_launch = nil
+        if preLaunchTask ~= nil then
+            local preLaunchConfig = vim.tbl_deep_extend("force", conf, {
+                term_opts = {
+                    on_exit = function(_, job)
+                        run_configuration(configuration, conf, configuration_map)
+                    end
+                },
+                override_on_exit = true
+            })
+            run_configuration(preLaunchTask, preLaunchConfig, configuration_map)
+        else
+            print("Configuration " .. configuration.preLaunch .. " not found")
+        end
         return
     end
     if configuration.debug then
@@ -117,6 +136,9 @@ local function run_configuration(configuration, conf)
             local term_opts = vim.tbl_deep_extend("force", conf.term_opts, { cmd = c })
             if configuration.term_opts then
                 term_opts = vim.tbl_deep_extend("force", term_opts, configuration.term_opts)
+                if term_opts.on_exit and configuration.override_on_exit then
+                    configuration.term_opts.on_exit = nil
+                end
             end
             if term_opts.direction == "float" then
                 term_opts.direction = "horizontal"
@@ -142,47 +164,47 @@ local function readFile(conf)
     local json = vim.fn.json_decode(content) or {}
     local configurations = json.configurations or {}
     if #configurations == 0 then
-        return nil
+        local cmd = config.cmds[vim.bo.filetype]
+        if cmd ~= nil then
+            run_configuration(cmd, conf)
+            return true
+        end
+        return false
     end
     if #configurations > 1 then
         local choices = {}
         local config_map = {}
         for i, item in pairs(configurations) do
             table.insert(choices, item.name or ("Configuration " .. i))
-            config_map[item.name] = item
+            config_map[item.name or ("Configuration " .. i)] = item
         end
         if vim.ui then
             vim.ui.select(choices, {}, function(choice)
-                run_configuration(config_map[choice], conf)
+                run_configuration(config_map[choice], conf, config_map)
             end)
-            return "async"
+            return true
         else
             local choice = vim.fn.inputlist(choices)
             if choice == 0 then
-                return nil
+                return true
             end
-            run_configuration(configurations[choice], conf)
-            return "sync"
+            run_configuration(configurations[choice], conf, config_map)
+            return true
         end
     end
     run_configuration(configurations[1], conf)
-    return "sync"
+    return true
 end
 
 function M.ACR()
-    local cmd = readFile(config) or config.cmds[vim.bo.filetype]
-    if not cmd then
+    local success = readFile(config)
+    if not success then
         vim.notify(
             "No run command found for filetype " ..
             vim.bo.filetype .. ". Manually set one in " .. config.json_filename .. " or nvim config",
             vim.log.levels.ERROR
         )
-        return
-    elseif cmd == "async" or cmd == "sync" then
-        return
     end
-
-    run_configuration(cmd, config)
 end
 
 function M.ACRAuto()
