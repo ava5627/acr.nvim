@@ -88,9 +88,13 @@ local function run_configuration(configuration, conf, configuration_map)
     if configuration == nil then
         return
     end
+    if type(configuration) == "string" then
+        execInTerminal(vim.tbl_deep_extend("force", config.term_opts, { cmd = configuration }))
+        return
+    end
     print("Running " .. configuration.name)
     if configuration.pre_launch ~= nil then
-        local preLaunchTask = configuration_map[configuration.preLaunch]
+        local preLaunchTask = configuration_map[configuration.pre_launch]
         configuration.pre_launch = nil
         if preLaunchTask ~= nil then
             local preLaunchConfig = vim.tbl_deep_extend("force", conf, {
@@ -103,7 +107,7 @@ local function run_configuration(configuration, conf, configuration_map)
             })
             run_configuration(preLaunchTask, preLaunchConfig, configuration_map)
         else
-            print("Configuration " .. configuration.preLaunch .. " not found")
+            print("Configuration " .. configuration.pre_launch .. " not found")
         end
         return
     end
@@ -113,9 +117,14 @@ local function run_configuration(configuration, conf, configuration_map)
             vim.notify("DAP not found", vim.log.levels.WARN)
             return
         end
-        local dap_config = dap.configurations[configuration.type][1]
-        local debug_configuration = vim.tbl_deep_extend("keep", configuration, dap_config)
-        dap.run(debug_configuration)
+        local dap_config = dap.configurations[configuration.type]
+        if dap_config then
+            dap_config = dap_config[1]
+            local debug_configuration = vim.tbl_deep_extend("keep", configuration, dap_config)
+            dap.run(debug_configuration)
+        else
+            dap.run(configuration)
+        end
         return
     end
     local cmd = get_cmd(configuration)
@@ -175,8 +184,9 @@ local function readFile(conf)
         local choices = {}
         local config_map = {}
         for i, item in pairs(configurations) do
-            table.insert(choices, item.name or ("Configuration " .. i))
-            config_map[item.name or ("Configuration " .. i)] = item
+            item.name = item.name or ("Configuration " .. i)
+            table.insert(choices, item.name)
+            config_map[item.name] = item
         end
         if vim.ui then
             vim.ui.select(choices, {}, function(choice)
@@ -201,7 +211,7 @@ function M.ACR()
     if not success then
         vim.notify(
             "No run command found for filetype " ..
-            vim.bo.filetype .. ". Manually set one in " .. config.json_filename .. " or nvim config",
+            vim.bo.filetype .. ". Manually set one in " .. config.json_filename,
             vim.log.levels.ERROR
         )
     end
