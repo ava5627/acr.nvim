@@ -88,18 +88,18 @@ local function run_configuration(configuration, conf, configuration_map)
     if configuration == nil then
         return
     end
+    M.last_run = configuration
     if type(configuration) == "string" then
-        execInTerminal(vim.tbl_deep_extend("force", config.term_opts, { cmd = configuration }))
+        execInTerminal(vim.tbl_deep_extend("force", config.term_opts, { cmd = get_cmd(configuration)}))
         return
     end
-    print("Running " .. configuration.name)
     if configuration.pre_launch ~= nil then
         local preLaunchTask = configuration_map[configuration.pre_launch]
-        configuration.pre_launch = nil
         if preLaunchTask ~= nil then
+            configuration.pre_launch = nil
             local preLaunchConfig = vim.tbl_deep_extend("force", conf, {
                 term_opts = {
-                    on_exit = function(_, job)
+                    on_exit = function()
                         run_configuration(configuration, conf, configuration_map)
                     end
                 },
@@ -107,7 +107,7 @@ local function run_configuration(configuration, conf, configuration_map)
             })
             run_configuration(preLaunchTask, preLaunchConfig, configuration_map)
         else
-            print("Configuration " .. configuration.pre_launch .. " not found")
+            vim.notify("Configuration " .. configuration.pre_launch .. " not found")
         end
         return
     end
@@ -206,6 +206,8 @@ local function readFile(conf)
     return true
 end
 
+M.last_run = nil
+
 function M.ACR()
     local success = readFile(config)
     if not success then
@@ -215,6 +217,15 @@ function M.ACR()
             vim.log.levels.ERROR
         )
     end
+end
+
+
+function M.ACRLast()
+    if M.last_run == nil then
+        M.ACRAuto()
+        return
+    end
+    run_configuration(M.last_run, config)
 end
 
 function M.ACRAuto()
@@ -241,20 +252,26 @@ function M.ACRAuto()
         run_configuration(configurations[1], config)
         return
     end
+    local config_map = {}
+    for i, item in pairs(configurations) do
+        item.name = item.name or ("Configuration " .. i)
+        config_map[item.name] = item
+    end
     for _, item in pairs(configurations) do
         if item.default then
-            run_configuration(item, config)
+            run_configuration(item, config, config_map)
             return
         end
     end
     vim.notify("No default configuration found, running first configuration. Set \"default\": true in " .. config.json_filename .. " to choose a default configuration", vim.log.levels.INFO)
-    run_configuration(configurations[1], config)
+    run_configuration(configurations[1], config, configurations)
 end
 
 function M.setup(user_config)
     config = vim.tbl_deep_extend("force", config, user_config)
     vim.api.nvim_create_user_command("ACR", M.ACR, {})
     vim.api.nvim_create_user_command("ACRAuto", M.ACRAuto, {})
+    vim.api.nvim_create_user_command("ACRLast", M.ACRLast, {})
 end
 
 return M
