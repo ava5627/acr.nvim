@@ -1,14 +1,10 @@
----@diagnostic disable: missing-parameter
 -- Based off https://github.com/is0n/jaq-nvim to work with toggleterm and DAP
-
-
 
 local config = {
     cmds = {
-        markdown = "glow %",
         python = "python3 %",
+        rust = "cargo run",
         go = "go run %",
-        java = "java %",
         sh = "%"
     },
     term_opts = {
